@@ -3,55 +3,49 @@ import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.DATABASE_URL!);
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const current = searchParams.get("current");
+  const { searchParams } = new URL(req.url);
+  const current = searchParams.get("current");
 
-    let result;
+  let result;
 
-    if (current) {
-      result = await sql`
-        SELECT url
-        FROM gifs
-        WHERE id > (
-          SELECT id FROM gifs WHERE url = ${current}
-        )
-        ORDER BY id
-        LIMIT 1
-      `;
+  if (!current) {
+    result = await sql`
+      SELECT url
+      FROM gifs
+      ORDER BY position
+      LIMIT 1
+    `;
+  } else {
 
-      if (result.length === 0) {
-        result = await sql`
-          SELECT url
+    const filename = current.split("/").pop();
+
+    result = await sql`
+      SELECT url
+      FROM gifs
+      WHERE position >
+        (
+          SELECT position
           FROM gifs
-          ORDER BY id
-          LIMIT 1
-        `;
-      }
-    } else {
+          WHERE url LIKE ${'%' + filename}
+        )
+      ORDER BY position
+      LIMIT 1
+    `;
+
+    if (result.length === 0) {
       result = await sql`
         SELECT url
         FROM gifs
-        ORDER BY id
+        ORDER BY position
         LIMIT 1
       `;
     }
-
-    return new Response(JSON.stringify({ gif: result[0].url }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
-
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Database error" }), {
-      status: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
   }
+
+  return new Response(JSON.stringify({ gif: result[0].url }), {
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
 }
